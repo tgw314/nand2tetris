@@ -30,7 +30,7 @@ type Parser struct {
 	lineNum      int
 }
 
-func New(r io.Reader, st *symbol.SymbolTable) *Parser {
+func New(r io.Reader) *Parser {
 	return &Parser{sc: bufio.NewScanner(r), hasMoreLines: true, lineNum: -1}
 }
 

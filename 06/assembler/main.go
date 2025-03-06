@@ -36,7 +36,7 @@ func main() {
 	st := symboltable.New()
 	w := bufio.NewWriter(out)
 
-	p1 := parser.New(in, nil)
+	p1 := parser.New(in)
 	p1.Advance()
 	for p1.HasMoreLines() {
 		if p1.InstructionType() == parser.L_INSTRUCTION {
@@ -58,7 +58,7 @@ func main() {
 		log.Panic(err)
 	}
 
-	p2 := parser.New(in, st)
+	p2 := parser.New(in)
 
 	p2.Advance()
 	for p2.HasMoreLines() {
