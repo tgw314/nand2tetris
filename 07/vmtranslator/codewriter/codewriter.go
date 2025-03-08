@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"vmtranslater/parser"
+	"vmtranslator/parser"
 )
 
 type CodeWriter struct {

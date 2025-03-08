@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"strings"
 
-	"vmtranslater/codewriter"
-	"vmtranslater/parser"
+	"vmtranslator/codewriter"
+	"vmtranslator/parser"
 )
 
 func errorAt(p *parser.Parser, ipath string, err error) {
