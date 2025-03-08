@@ -83,25 +83,33 @@ func (cw *CodeWriter) popBinary() error {
 	return nil
 }
 
-func (cw *CodeWriter) WriteArithmetic(cmd string) {
+func (cw *CodeWriter) WriteArithmetic(cmd string) error {
 	cw.writeln("// %s", cmd)
 	switch cmd {
 	case "add":
-		cw.popBinary()
+		if err := cw.popBinary(); err != nil {
+			return err
+		}
 		cw.writeln("    // D = D + R13")
 		cw.writeln("    @R13")
 		cw.writeln("    D=D+M")
 	case "sub":
-		cw.popBinary()
+		if err := cw.popBinary(); err != nil {
+			return err
+		}
 		cw.writeln("    // D = D - R13")
 		cw.writeln("    @R13")
 		cw.writeln("    D=D-M")
 	case "neg":
-		cw.popUnary()
+		if err := cw.popUnary(); err != nil {
+			return err
+		}
 		cw.writeln("    // D = -D")
 		cw.writeln("    D=-D")
 	case "eq", "gt", "lt":
-		cw.popBinary()
+		if err := cw.popBinary(); err != nil {
+			return err
+		}
 		{
 			ucmd := strings.ToUpper(cmd)
 			trueL := fmt.Sprintf(".%s.true.%03d", ucmd, cw.labelCount)
@@ -121,22 +129,29 @@ func (cw *CodeWriter) WriteArithmetic(cmd string) {
 			cw.labelCount++
 		}
 	case "and":
-		cw.popBinary()
+		if err := cw.popBinary(); err != nil {
+			return err
+		}
 		cw.writeln("    // D = D & R13")
 		cw.writeln("    @R13")
 		cw.writeln("    D=D&M")
 	case "or":
-		cw.popBinary()
+		if err := cw.popBinary(); err != nil {
+			return err
+		}
 		cw.writeln("    // D = D | R13")
 		cw.writeln("    @R13")
 		cw.writeln("    D=D|M")
 	case "not":
-		cw.popUnary()
+		if err := cw.popUnary(); err != nil {
+			return err
+		}
 		cw.writeln("    // D = !D")
 		cw.writeln("    D=!D")
 	}
 
 	cw.pushArith()
+	return nil
 }
 
 func (cw *CodeWriter) staticLabel(idx int) string {

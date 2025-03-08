@@ -41,7 +41,9 @@ func main() {
 			if err != nil {
 				log.Panic(err)
 			}
-			cw.WriteArithmetic(cmd)
+			if err := cw.WriteArithmetic(cmd); err != nil {
+				log.Panic(err)
+			}
 		case parser.C_PUSH, parser.C_POP:
 			seg, err := p.Arg1()
 			if err != nil {
@@ -52,7 +54,9 @@ func main() {
 				log.Panic(err)
 			}
 
-			cw.WritePushPop(cmdTy, seg, idx)
+			if err := cw.WritePushPop(cmdTy, seg, idx); err != nil {
+				log.Panic(err)
+			}
 		}
 		p.Advance()
 	}
