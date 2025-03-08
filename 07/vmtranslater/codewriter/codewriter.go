@@ -35,11 +35,11 @@ func (cw *CodeWriter) writeln(format string, a ...any) {
 }
 
 func (cw *CodeWriter) pushArith() {
-	cw.write(`    // RAM[*SP] = D
+	cw.write(`    // RAM[SP] = D
     @SP
     A=M
     M=D
-    // (*SP)++
+    // SP++
     @SP
     M=M+1
 `)
@@ -51,7 +51,7 @@ func (cw *CodeWriter) popUnary() error {
 		return fmt.Errorf("stack underflow")
 	}
 
-	cw.write(`    // y = D = RAM[--(*SP)]
+	cw.write(`    // y = D = RAM[--SP]
     @SP
     M=M-1
     A=M
@@ -66,14 +66,14 @@ func (cw *CodeWriter) popBinary() error {
 		return fmt.Errorf("stack underflow")
 	}
 
-	cw.write(`    // y = R13 = RAM[--(*SP)]
+	cw.write(`    // y = R13 = RAM[--SP]
     @SP
     M=M-1
     A=M
     D=M
     @R13
     M=D
-    // x = D = RAM[--(*SP)]
+    // x = D = RAM[--SP]
     @SP
     M=M-1
     A=M
@@ -188,7 +188,7 @@ func (cw *CodeWriter) WritePushPop(cmd parser.CommandType, seg string, idx int) 
 			cw.writeln("    @%d", idx)
 			cw.writeln("    D=A")
 
-			cw.writeln("    // D = RAM[*%s][D]", uSeg)
+			cw.writeln("    // D = RAM[%s][D]", uSeg)
 			cw.writeln("    @%s", uSeg)
 			cw.writeln("    A=M")
 			cw.writeln("    A=D+A")
@@ -218,13 +218,13 @@ func (cw *CodeWriter) WritePushPop(cmd parser.CommandType, seg string, idx int) 
 		case "static":
 			{
 				l := cw.staticLabel(idx)
-				cw.writeln("    // D = *%s", l)
+				cw.writeln("    // D = RAM[%s]", l)
 				cw.writeln("    @%s", l)
 				cw.writeln("    D=M")
 			}
 		}
 
-		cw.writeln("    // RAM[*SP] = D")
+		cw.writeln("    // RAM[SP] = D")
 		cw.writeln("    @SP")
 		cw.writeln("    A=M")
 		cw.writeln("    M=D")
@@ -237,7 +237,7 @@ func (cw *CodeWriter) WritePushPop(cmd parser.CommandType, seg string, idx int) 
 		}
 		cw.sp--
 		cw.writeln("// pop %s %d", seg, idx)
-		cw.writeln("    // D = RAM[--(*SP)]")
+		cw.writeln("    // D = RAM[--SP]")
 		cw.writeln("    @SP")
 		cw.writeln("    M=M-1")
 		cw.writeln("    A=M")
@@ -263,7 +263,7 @@ func (cw *CodeWriter) WritePushPop(cmd parser.CommandType, seg string, idx int) 
 			cw.writeln("    @%d", idx)
 			cw.writeln("    D=A")
 
-			cw.writeln("    // R14 = &(RAM[*%s][%d])", uSeg, idx)
+			cw.writeln("    // R14 = %s + D", uSeg)
 			cw.writeln("    @%s", uSeg)
 			cw.writeln("    A=M")
 			cw.writeln("    D=D+A")
@@ -278,7 +278,7 @@ func (cw *CodeWriter) WritePushPop(cmd parser.CommandType, seg string, idx int) 
 			cw.writeln("    @R14")
 			cw.writeln("    A=M")
 
-			cw.writeln("    // RAM[*%s][%d] = D")
+			cw.writeln("    // RAM[%s][%d] = D", uSeg, idx)
 			cw.writeln("    M=D")
 
 		case "pointer":
@@ -298,14 +298,14 @@ func (cw *CodeWriter) WritePushPop(cmd parser.CommandType, seg string, idx int) 
 			cw.writeln("    M=D")
 
 		case "constant":
-			cw.writeln("    // *(%d) = D", idx)
+			cw.writeln("    // RAM[%d] = D", idx)
 			cw.writeln("    @%d", idx)
 			cw.writeln("    M=D")
 
 		case "static":
 			{
 				l := cw.staticLabel(idx)
-				cw.writeln("    // *%s = D", l)
+				cw.writeln("    // RAM[%s] = D", l)
 				cw.writeln("    @%s", l)
 				cw.writeln("    M=D")
 			}
