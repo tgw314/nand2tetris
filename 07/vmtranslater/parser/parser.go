@@ -26,6 +26,7 @@ type Parser struct {
 	sc           *bufio.Scanner
 	toks         []string
 	hasMoreLines bool
+	lineNumber   int
 }
 
 func New(r io.Reader) *Parser {
@@ -52,10 +53,16 @@ func (p *Parser) isComment() bool {
 	return strings.Index(p.getLine(), "//") == 0
 }
 
+func (p *Parser) LineNumber() int {
+	return p.lineNumber
+}
+
 func (p *Parser) Advance() {
 	p.hasMoreLines = p.sc.Scan()
+	p.lineNumber++
 	for p.HasMoreLines() && (p.isBlankLine() || p.isComment()) {
 		p.hasMoreLines = p.sc.Scan()
+		p.lineNumber++
 	}
 
 	p.toks = strings.Split(p.getLine(), " ")

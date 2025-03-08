@@ -4,11 +4,17 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"vmtranslater/codewriter"
 	"vmtranslater/parser"
 )
+
+func errorAt(p *parser.Parser, ipath string, err error) {
+	ln := strconv.Itoa(p.LineNumber())
+	log.Panic(ipath, ":", ln, ": ", err)
+}
 
 func main() {
 	if len(os.Args) < 2 {
@@ -39,23 +45,23 @@ func main() {
 		case parser.C_ARITHMETIC:
 			cmd, err := p.Arg1()
 			if err != nil {
-				log.Panic(err)
+				errorAt(p, ipath, err)
 			}
 			if err := cw.WriteArithmetic(cmd); err != nil {
-				log.Panic(err)
+				errorAt(p, ipath, err)
 			}
 		case parser.C_PUSH, parser.C_POP:
 			seg, err := p.Arg1()
 			if err != nil {
-				log.Panic(err)
+				errorAt(p, ipath, err)
 			}
 			idx, err := p.Arg2()
 			if err != nil {
-				log.Panic(err)
+				errorAt(p, ipath, err)
 			}
 
 			if err := cw.WritePushPop(cmdTy, seg, idx); err != nil {
-				log.Panic(err)
+				errorAt(p, ipath, err)
 			}
 		}
 		p.Advance()
