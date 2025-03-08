@@ -139,6 +139,18 @@ func (cw *CodeWriter) WriteArithmetic(cmd string) {
 	cw.pushArith()
 }
 
+func (cw *CodeWriter) staticLabel(idx int) string {
+	_, fn := filepath.Split(cw.fname)
+	bn := strings.TrimSuffix(fn, filepath.Ext(fn))
+
+	if _, ok := cw.staticTable[idx]; !ok {
+		cw.staticTable[idx] = fmt.Sprintf("%s.%03d", bn, cw.staticCount)
+		cw.staticCount++
+	}
+
+	return cw.staticTable[idx]
+}
+
 func (cw *CodeWriter) WritePushPop(cmd parser.CommandType, seg string, idx int) error {
 	switch cmd {
 	case parser.C_PUSH:
@@ -156,9 +168,11 @@ func (cw *CodeWriter) WritePushPop(cmd parser.CommandType, seg string, idx int) 
 			default:
 				uSeg = strings.ToUpper(seg)
 			}
+
 			cw.writeln("    // D = %d", idx)
 			cw.writeln("    @%d", idx)
 			cw.writeln("    D=A")
+
 			cw.writeln("    // D = RAM[*%s][D]", uSeg)
 			cw.writeln("    @%s", uSeg)
 			cw.writeln("    A=M")
@@ -188,19 +202,10 @@ func (cw *CodeWriter) WritePushPop(cmd parser.CommandType, seg string, idx int) 
 
 		case "static":
 			{
-				_, fn := filepath.Split(cw.fname)
-				bn := strings.TrimSuffix(fn, filepath.Ext(fn))
-				var l string
-				if _, ok := cw.staticTable[idx]; !ok {
-					l = fmt.Sprintf("%s.%d", bn, cw.staticCount)
-					cw.staticTable[idx] = l
-				} else {
-					l = cw.staticTable[idx]
-				}
+				l := cw.staticLabel(idx)
 				cw.writeln("    // D = *%s", l)
 				cw.writeln("    @%s", l)
 				cw.writeln("    D=M")
-				cw.staticCount++
 			}
 		}
 
@@ -284,19 +289,10 @@ func (cw *CodeWriter) WritePushPop(cmd parser.CommandType, seg string, idx int) 
 
 		case "static":
 			{
-				_, fn := filepath.Split(cw.fname)
-				bn := strings.TrimSuffix(fn, filepath.Ext(fn))
-				var l string
-				if _, ok := cw.staticTable[idx]; !ok {
-					l = fmt.Sprintf("%s.%d", bn, cw.staticCount)
-					cw.staticTable[idx] = l
-				} else {
-					l = cw.staticTable[idx]
-				}
+				l := cw.staticLabel(idx)
 				cw.writeln("    // *%s = D", l)
 				cw.writeln("    @%s", l)
 				cw.writeln("    M=D")
-				cw.staticCount++
 			}
 		}
 	}
