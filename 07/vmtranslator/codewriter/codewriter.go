@@ -22,7 +22,12 @@ type CodeWriter struct {
 }
 
 func New(f *os.File) *CodeWriter {
-	return &CodeWriter{file: f, fname: f.Name(), writer: *bufio.NewWriter(f), staticTable: make(map[int]string)}
+	return &CodeWriter{
+		file:        f,
+		fname:       f.Name(),
+		writer:      *bufio.NewWriter(f),
+		staticTable: make(map[int]string),
+	}
 }
 
 func (cw *CodeWriter) write(format string, a ...any) {
@@ -34,7 +39,7 @@ func (cw *CodeWriter) writeln(format string, a ...any) {
 	cw.write(format+"\n", a...)
 }
 
-func (cw *CodeWriter) pushArith() {
+func (cw *CodeWriter) push() {
 	cw.write(`    // RAM[SP] = D
     @SP
     A=M
@@ -150,7 +155,7 @@ func (cw *CodeWriter) WriteArithmetic(cmd string) error {
 		cw.writeln("    D=!D")
 	}
 
-	cw.pushArith()
+	cw.push()
 	return nil
 }
 
@@ -169,7 +174,6 @@ func (cw *CodeWriter) staticLabel(idx int) string {
 func (cw *CodeWriter) WritePushPop(cmd parser.CommandType, seg string, idx int) error {
 	switch cmd {
 	case parser.C_PUSH:
-		cw.sp++
 		cw.writeln("// push %s %d", seg, idx)
 
 		switch seg {
@@ -224,24 +228,12 @@ func (cw *CodeWriter) WritePushPop(cmd parser.CommandType, seg string, idx int) 
 			}
 		}
 
-		cw.writeln("    // RAM[SP] = D")
-		cw.writeln("    @SP")
-		cw.writeln("    A=M")
-		cw.writeln("    M=D")
-		cw.writeln("    // SP++")
-		cw.writeln("    @SP")
-		cw.writeln("    M=M+1")
+		cw.push()
 	case parser.C_POP:
-		if cw.sp-1 < 0 {
-			return fmt.Errorf("stack underflow")
-		}
-		cw.sp--
 		cw.writeln("// pop %s %d", seg, idx)
-		cw.writeln("    // D = RAM[--SP]")
-		cw.writeln("    @SP")
-		cw.writeln("    M=M-1")
-		cw.writeln("    A=M")
-		cw.writeln("    D=M")
+		if err := cw.popUnary(); err != nil {
+			return err
+		}
 
 		switch seg {
 		case "local", "argument", "this", "that":
