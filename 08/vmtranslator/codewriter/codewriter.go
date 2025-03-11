@@ -12,7 +12,7 @@ import (
 
 type counter func(bool) int
 
-func cnt() counter {
+func count() counter {
 	var i int
 	return func(reset bool) int {
 		defer func() {
@@ -29,6 +29,11 @@ func cnt() counter {
 	}
 }
 
+type tableKey struct {
+	vmName string
+	index  int
+}
+
 type CodeWriter struct {
 	file        io.Closer
 	writer      bufio.Writer
@@ -36,7 +41,7 @@ type CodeWriter struct {
 	labelCount  counter
 	staticCount counter
 	returnCount counter
-	staticTable map[int]string
+	staticTable map[tableKey]string
 	vmName      string
 	labelPrefix string
 }
@@ -45,10 +50,10 @@ func New(f io.WriteCloser, ipath string) *CodeWriter {
 	cw := &CodeWriter{
 		file:        f,
 		writer:      *bufio.NewWriter(f),
-		labelCount:  cnt(),
-		staticCount: cnt(),
-		returnCount: cnt(),
-		staticTable: make(map[int]string),
+		labelCount:  count(),
+		staticCount: count(),
+		returnCount: count(),
+		staticTable: make(map[tableKey]string),
 	}
 
 	cw.SetFileName(ipath)
@@ -126,11 +131,16 @@ func (cw *CodeWriter) popBinary() error {
 }
 
 func (cw *CodeWriter) staticLabel(idx int) string {
-	if _, ok := cw.staticTable[idx]; !ok {
-		cw.staticTable[idx] = fmt.Sprintf("%s.%03d", cw.vmName, cw.staticCount(false))
+	key := tableKey{cw.vmName, idx}
+	if _, ok := cw.staticTable[key]; !ok {
+		cw.staticTable[key] = fmt.Sprintf(
+			"%s.%03d",
+			cw.vmName,
+			cw.staticCount(false),
+		)
 	}
 
-	return cw.staticTable[idx]
+	return cw.staticTable[key]
 }
 
 func (cw *CodeWriter) WriteArithmetic(cmd string) error {
@@ -204,6 +214,21 @@ func (cw *CodeWriter) WriteArithmetic(cmd string) error {
 	return nil
 }
 
+func segLabel(seg string) string {
+	switch seg {
+	case "local":
+		return "LCL"
+	case "argument":
+		return "ARG"
+	case "this":
+		return "THIS"
+	case "that":
+		return "THAT"
+	default:
+		return ""
+	}
+}
+
 func (cw *CodeWriter) WritePushPop(cmd parser.CommandType, seg string, idx int) error {
 	switch cmd {
 	case parser.C_PUSH:
@@ -211,15 +236,7 @@ func (cw *CodeWriter) WritePushPop(cmd parser.CommandType, seg string, idx int) 
 
 		switch seg {
 		case "local", "argument", "this", "that":
-			var uSeg string
-			switch seg {
-			case "local":
-				uSeg = "LCL"
-			case "argument":
-				uSeg = "ARG"
-			default:
-				uSeg = strings.ToUpper(seg)
-			}
+			uSeg := segLabel(seg)
 
 			cw.writeln("    // D = %d", idx)
 			cw.writeln("    @%d", idx)
@@ -269,15 +286,7 @@ func (cw *CodeWriter) WritePushPop(cmd parser.CommandType, seg string, idx int) 
 		}
 		switch seg {
 		case "local", "argument", "this", "that":
-			var uSeg string
-			switch seg {
-			case "local":
-				uSeg = "LCL"
-			case "argument":
-				uSeg = "ARG"
-			default:
-				uSeg = strings.ToUpper(seg)
-			}
+			uSeg := segLabel(seg)
 
 			cw.writeln("    // R13 = D")
 			cw.writeln("    @R13")
@@ -373,8 +382,8 @@ func (cw *CodeWriter) WriteFunction(name string, nVars int) {
 
 	cw.writeln("// function %s %d", name, nVars)
 	cw.writeln("(%s)", cw.labelPrefix)
+	cw.writeln("    D=0")
 	for range nVars {
-		cw.writeln("    D=0")
 		cw.push()
 	}
 }
@@ -398,8 +407,10 @@ func (cw *CodeWriter) WriteCall(name string, nArgs int) {
 	cw.writeln("    D=M")
 	cw.writeln("    @5")
 	cw.writeln("    D=D-A")
-	cw.writeln("    @%d", nArgs)
-	cw.writeln("    D=D-A")
+	if nArgs > 0 {
+		cw.writeln("    @%d", nArgs)
+		cw.writeln("    D=D-A")
+	}
 	cw.writeln("    @ARG")
 	cw.writeln("    M=D")
 	cw.writeln("    // LCL = SP")

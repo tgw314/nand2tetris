@@ -73,7 +73,7 @@ func translate(p *parser.Parser, cw *codewriter.CodeWriter) error {
 				}
 
 				if err := cw.WriteIf(l); err != nil {
-					log.Panic(err)
+					return err
 				}
 			}
 		case parser.C_FUNCTION:
@@ -104,7 +104,7 @@ func translate(p *parser.Parser, cw *codewriter.CodeWriter) error {
 			}
 		case parser.C_RETURN:
 			if err := cw.WriteReturn(); err != nil {
-				log.Panic(err)
+				return err
 			}
 
 		}
