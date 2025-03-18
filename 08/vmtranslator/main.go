@@ -113,36 +113,38 @@ func translate(p *parser.Parser, cw *codewriter.CodeWriter) error {
 	return nil
 }
 
-func main() {
-	var ipath string
-	var err error
-
+func inputPath() (string, error) {
 	if len(os.Args) < 2 {
-		ipath, err = os.Getwd()
-	} else {
-		ipath, err = filepath.Abs(os.Args[1])
+		return os.Getwd()
 	}
+	return filepath.Abs(os.Args[1])
+}
+
+func sourceList(path string) ([]string, error) {
+	stat, err := os.Stat(path)
 	if err != nil {
-		log.Panic(err)
+		return nil, nil
 	}
 
-	stat, err := os.Stat(ipath)
-	if err != nil {
-		log.Panic(err)
-	}
-
-	var srcs []string
 	if stat.IsDir() {
-		srcs, err = filepath.Glob(filepath.Join(ipath, "*.vm"))
-		if err != nil {
-			log.Panic(err)
-		}
+		return filepath.Glob(filepath.Join(path, "*.vm"))
 	} else {
-		if filepath.Ext(ipath) != ".vm" {
-			err = fmt.Errorf("invalid file extension")
-			log.Panic(err)
+		if filepath.Ext(path) != ".vm" {
+			return nil, fmt.Errorf("invalid file extension")
 		}
-		srcs = []string{ipath}
+		return []string{path}, nil
+	}
+}
+
+func main() {
+	ipath, err := inputPath()
+	if err != nil {
+		log.Panic(err)
+	}
+
+	srcs, err := sourceList(ipath)
+	if err != nil {
+		log.Panic(err)
 	}
 
 	opath := strings.TrimSuffix(filepath.Base(ipath), filepath.Ext(ipath)) + ".asm"
