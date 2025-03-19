@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"jackanalyzer/compilationengine"
 	"jackanalyzer/tokenizer"
 )
 
@@ -59,34 +60,32 @@ func saveTokens(tok *tokenizer.Tokenizer, path string) error {
 
 	w.WriteString("<tokens>\n")
 
-	if err := tok.Advance(); err != nil {
-		return err
-	}
+	tok.Advance()
 	for tok.HasMoreTokens() {
-		w.WriteString("<" + string(tok.TokenType()) + "> ")
+		ty := tok.TokenType()
+		w.WriteString("<" + string(ty) + "> ")
 
 		switch tok.TokenType() {
 		case tokenizer.KEYWORD:
 			w.WriteString(string(tok.Keyword()))
+
 		case tokenizer.SYMBOL:
 			w.WriteString(escape(string(tok.Symbol())))
+
 		case tokenizer.INT_CONST:
-			n, err := tok.IntVal()
-			if err != nil {
-				return err
-			}
+			n := tok.IntVal()
 			w.WriteString(strconv.Itoa(n))
+
 		case tokenizer.STRING_CONST:
 			w.WriteString(escape(tok.StringVal()))
+
 		case tokenizer.IDENTIFIER:
 			w.WriteString(tok.Identifier())
 		}
 
-		w.WriteString(" </" + string(tok.TokenType()) + ">\n")
-		if err := tok.Advance(); err != nil {
-			return err
-		}
+		w.WriteString(" </" + string(ty) + ">\n")
 	}
+
 	w.WriteString("</tokens>")
 
 	return nil
@@ -118,6 +117,15 @@ func main() {
 		if err != nil {
 			log.Panic(err)
 		}
+
+		out, err := os.Create(removeExt(srcPath) + ".xml")
+		if err != nil {
+			log.Panic(err)
+		}
+		defer in.Close()
+
+		ce := compilationengine.New(tok, out)
+		ce.CompileClass()
 
 		if err := saveTokens(tok, removeExt(srcPath)+"T.xml"); err != nil {
 			log.Panic(err)

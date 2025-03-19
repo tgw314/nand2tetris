@@ -1,8 +1,10 @@
 package tokenizer
 
 import (
+	"bufio"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"slices"
 	"strconv"
@@ -96,6 +98,7 @@ var keywordMap = map[string]Keyword{
 
 type Tokenizer struct {
 	src  string
+	r    *bufio.Reader
 	pos  int
 	body string
 	ty   TokenType
@@ -117,6 +120,7 @@ func New(r *os.File) (*Tokenizer, error) {
 
 	tok := &Tokenizer{
 		src: string(src),
+		r:   bufio.NewReader(r),
 		pos: 0,
 	}
 
@@ -127,8 +131,8 @@ func (t *Tokenizer) HasMoreTokens() bool {
 	return len(t.src) > t.pos
 }
 
-func (t *Tokenizer) Advance() error {
-	for len(t.src) > t.pos {
+func (t *Tokenizer) Advance() {
+	for t.HasMoreTokens() {
 		if unicode.IsSpace(rune(t.src[t.pos])) {
 			t.pos++
 			continue
@@ -136,12 +140,8 @@ func (t *Tokenizer) Advance() error {
 
 		if strings.HasPrefix(t.src[t.pos:], "//") {
 			t.pos += 2
-			for _, r := range t.src[t.pos:] {
-				if r == '\n' {
-					break
-				}
-				t.pos++
-			}
+			lf := strings.Index(t.src[t.pos:], "\n")
+			t.pos += lf + 1
 			continue
 		}
 
@@ -149,7 +149,7 @@ func (t *Tokenizer) Advance() error {
 			t.pos += 2
 			skip := strings.Index(t.src[t.pos:], "*/")
 			if skip == -1 {
-				return fmt.Errorf("unterminated comment")
+				log.Panic("unterminated comment")
 			}
 			t.pos += skip + 2
 			continue
@@ -161,7 +161,7 @@ func (t *Tokenizer) Advance() error {
 				if !unicode.IsDigit(c) {
 					t.body = t.src[t.pos : t.pos+i]
 					t.pos += i
-					return nil
+					return
 				}
 			}
 		}
@@ -171,7 +171,7 @@ func (t *Tokenizer) Advance() error {
 			t.body = t.src[t.pos : t.pos+1]
 
 			t.pos++
-			return nil
+			return
 		}
 
 		if strings.HasPrefix(t.src[t.pos:], "\"") {
@@ -182,7 +182,7 @@ func (t *Tokenizer) Advance() error {
 			t.body = t.src[t.pos:tail]
 
 			t.pos = tail + 1
-			return nil
+			return
 		}
 
 		if isIdentHead(rune(t.src[t.pos])) {
@@ -196,12 +196,15 @@ func (t *Tokenizer) Advance() error {
 			}
 
 			t.pos = tail
-			return nil
+			return
 		}
 
-		return fmt.Errorf("unexpected token: `%s`", strings.TrimRight(t.src[t.pos:], "\n"))
+		err := fmt.Errorf(
+			"unexpected token: `%s`",
+			strings.TrimRight(t.src[t.pos:], "\n"),
+		)
+		log.Panic(err)
 	}
-	return nil
 }
 
 func (t *Tokenizer) TokenType() TokenType {
@@ -209,25 +212,42 @@ func (t *Tokenizer) TokenType() TokenType {
 }
 
 func (t *Tokenizer) Keyword() Keyword {
+	defer t.Advance()
 	return keywordMap[t.body]
 }
 
+func (t *Tokenizer) MatchKw(k Keyword) bool {
+	return keywordMap[t.body] == k
+}
+
 func (t *Tokenizer) Symbol() rune {
+	defer t.Advance()
+	return rune(t.body[0])
+}
+
+func (t *Tokenizer) MatchSym(s rune) bool {
+	return rune(t.body[0]) == s
+}
+
+func (t *Tokenizer) PeekSym() rune {
 	return rune(t.body[0])
 }
 
 func (t *Tokenizer) Identifier() string {
+	defer t.Advance()
 	return t.body
 }
 
-func (t *Tokenizer) IntVal() (int, error) {
+func (t *Tokenizer) IntVal() int {
+	defer t.Advance()
 	n, err := strconv.Atoi(t.body)
 	if err != nil {
-		return -1, err
+		log.Panic(err)
 	}
-	return n, nil
+	return n
 }
 
 func (t *Tokenizer) StringVal() string {
+	defer t.Advance()
 	return t.body
 }
