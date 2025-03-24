@@ -112,7 +112,7 @@ func notIdentRune(r rune) bool {
 	return !isIdentHead(r) && !unicode.IsDigit(r)
 }
 
-func New(r *os.File) (*Tokenizer, error) {
+func NewTokenizer(r *os.File) (*Tokenizer, error) {
 	src, err := io.ReadAll(r)
 	if err != nil {
 		return nil, err
@@ -132,6 +132,9 @@ func (t *Tokenizer) HasMoreTokens() bool {
 }
 
 func (t *Tokenizer) Advance() {
+	defer func() {
+		fmt.Println(t.body)
+	}()
 	for t.HasMoreTokens() {
 		if unicode.IsSpace(rune(t.src[t.pos])) {
 			t.pos++
@@ -199,12 +202,13 @@ func (t *Tokenizer) Advance() {
 			return
 		}
 
-		err := fmt.Errorf(
+		log.Panicf(
 			"unexpected token: `%s`",
 			strings.TrimRight(t.src[t.pos:], "\n"),
 		)
-		log.Panic(err)
 	}
+	t.ty = ""
+	t.body = ""
 }
 
 func (t *Tokenizer) TokenType() TokenType {
@@ -212,65 +216,90 @@ func (t *Tokenizer) TokenType() TokenType {
 }
 
 func (t *Tokenizer) Keyword() Keyword {
+	if t.TokenType() != KEYWORD {
+		log.Panicf("expected a keyword: `%s`", t.body)
+	}
 	defer t.Advance()
 	return keywordMap[t.body]
 }
 
 func (t *Tokenizer) MatchKw(k Keyword) bool {
-	return keywordMap[t.body] == k
+	return t.TokenType() == KEYWORD && keywordMap[t.body] == k
 }
 
 func (t *Tokenizer) ConsumeKw(k Keyword) bool {
-	if keywordMap[t.body] == k {
+	if t.TokenType() == KEYWORD && keywordMap[t.body] == k {
 		t.Advance()
 		return true
 	}
 	return false
 }
 
+func (t *Tokenizer) ExpectKw(k Keyword) {
+	if t.TokenType() != KEYWORD || keywordMap[t.body] != k {
+		log.Panicf("expected `%s`: `%s`", k, t.body)
+	}
+	t.Advance()
+}
+
 func (t *Tokenizer) Symbol() rune {
+	if t.TokenType() != SYMBOL {
+		log.Panicf("expected a symbol: `%s`", t.body)
+	}
 	defer t.Advance()
 	return rune(t.body[0])
 }
 
 func (t *Tokenizer) MatchSym(s rune) bool {
-	return rune(t.body[0]) == s
+	return t.TokenType() == SYMBOL && rune(t.body[0]) == s
 }
 
 func (t *Tokenizer) ConsumeSym(s rune) bool {
-	if rune(t.body[0]) == s {
+	if t.TokenType() == SYMBOL && rune(t.body[0]) == s {
 		t.Advance()
 		return true
 	}
 	return false
 }
 
+func (t *Tokenizer) ExpectSym(s rune) {
+	if t.TokenType() != SYMBOL || rune(t.body[0]) != s {
+		log.Panicf("expected `%c`: `%s`", s, t.body)
+	}
+	t.Advance()
+}
+
 func (t *Tokenizer) PeekSym() rune {
+	if t.TokenType() != SYMBOL {
+		log.Panicf("expected a symbol: `%s`", t.body)
+	}
 	return rune(t.body[0])
 }
 
 func (t *Tokenizer) Identifier() string {
-	defer t.Advance()
-	return t.body
-}
-
-func (t *Tokenizer) ExpectIdent() string {
 	if t.TokenType() != IDENTIFIER {
-		log.Panic("expected an identifier")
+		log.Panicf("expected an identifier: `%s`", t.body)
 	}
+	defer t.Advance()
 	return t.body
 }
 
 func (t *Tokenizer) IntVal() int {
-	defer t.Advance()
+	if t.TokenType() != INT_CONST {
+		log.Panicf("expected an integer constant: `%s`", t.body)
+	}
 	n, err := strconv.Atoi(t.body)
 	if err != nil {
 		log.Panic(err)
 	}
+	defer t.Advance()
 	return n
 }
 
 func (t *Tokenizer) StringVal() string {
+	if t.TokenType() != STRING_CONST {
+		log.Panicf("expected a string constant: `%s`", t.body)
+	}
 	defer t.Advance()
 	return t.body
 }
