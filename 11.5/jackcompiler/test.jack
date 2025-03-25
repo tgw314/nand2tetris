@@ -1,0 +1,17 @@
+class Main {
+    function void main() {
+        do Output.printString("5+6*7: ");
+        do Output.printInt(5 + 6 * 7);
+        do Output.println();
+
+        do Output.printString("5*(9-6)");
+        do Output.printInt(5*(9-6));
+        do Output.println();
+
+        do Output.printString("(3+5)/2");
+        do Output.printInt((3+5)/2);
+        do Output.println();
+
+        return;
+    }
+}
