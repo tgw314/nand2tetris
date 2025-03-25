@@ -36,6 +36,7 @@ type CompilationEngine struct {
 	labelCount    counter
 	isVoid        bool
 	isConstructor bool
+	hasReturn     bool
 }
 
 func NewCompilationEngine(tok *token.Tokenizer, opath string) (*CompilationEngine, error) {
@@ -79,9 +80,16 @@ func (ce *CompilationEngine) CompileClass() {
 	ce.tok.ExpectSym('}')
 }
 
+func (ce *CompilationEngine) compileType() string {
+	if ce.tok.TokenType() == token.KEYWORD {
+		return string(ce.tok.Keyword())
+	}
+	return ce.tok.Identifier()
+}
+
 func (ce *CompilationEngine) compileClassVarDec() {
 	kind := symbt.SymbolKind(ce.tok.Keyword())
-	ty := string(ce.tok.Keyword())
+	ty := ce.compileType()
 	name := ce.tok.Identifier()
 
 	ce.classSt.Define(name, ty, kind)
@@ -98,19 +106,19 @@ func (ce *CompilationEngine) compileSubroutine() {
 	ce.subroutineSt.Reset()
 	ce.labelCount.Reset()
 
-	ce.isConstructor = false
 	isM := false
+	ce.isConstructor = false
 	ce.isVoid = false
 
 	switch kw := ce.tok.Keyword(); kw {
 	case token.CONSTRUCTOR:
 		ce.isConstructor = true
-		ce.isVoid = ce.tok.Keyword() == token.VOID
+		ce.isVoid = ce.compileType() == "void"
 	case token.FUNCTION:
-		ce.isVoid = ce.tok.Keyword() == token.VOID
+		ce.isVoid = ce.compileType() == "void"
 	case token.METHOD:
 		isM = true
-		ce.isVoid = ce.tok.Keyword() == token.VOID
+		ce.isVoid = ce.compileType() == "void"
 		ce.subroutineSt.Define("this", ce.class, symbt.ARG)
 	default:
 		log.Panicf("unexpected keyword %s", kw)
@@ -125,7 +133,7 @@ func (ce *CompilationEngine) compileSubroutine() {
 
 func (ce *CompilationEngine) compileParameterList() {
 	for !ce.tok.MatchSym(')') {
-		ty := string(ce.tok.Keyword())
+		ty := ce.compileType()
 		name := ce.tok.Identifier()
 		ce.subroutineSt.Define(name, ty, symbt.ARG)
 
@@ -136,6 +144,8 @@ func (ce *CompilationEngine) compileParameterList() {
 }
 
 func (ce *CompilationEngine) compileSubroutineBody(name string, isM bool) {
+	ce.hasReturn = false
+
 	ce.tok.ExpectSym('{')
 	for ce.tok.MatchKw(token.VAR) {
 		ce.compileVarDec()
@@ -151,17 +161,21 @@ func (ce *CompilationEngine) compileSubroutineBody(name string, isM bool) {
 		ce.vm.Pop(vm.POINTER, 0)
 	} else if isM {
 		ce.vm.Push(vm.ARGUMENT, 0)
-		ce.vm.Push(vm.POINTER, 0)
+		ce.vm.Pop(vm.POINTER, 0)
 	}
 
 	ce.compileStatements()
+
+	if !ce.hasReturn {
+		log.Panicf("missing return statement")
+	}
 
 	ce.tok.ExpectSym('}')
 }
 
 func (ce *CompilationEngine) compileVarDec() {
 	ce.tok.ExpectKw(token.VAR)
-	ty := string(ce.tok.Keyword())
+	ty := ce.compileType()
 
 	name := ce.tok.Identifier()
 	ce.subroutineSt.Define(name, ty, symbt.VAR)
@@ -203,38 +217,38 @@ func (ce *CompilationEngine) compileStatements() {
 	}
 }
 
-func (ce *CompilationEngine) findVar(name string) (vm.Segment, int) {
+func (ce *CompilationEngine) varSeg(name string) (vm.Segment, int) {
 	switch ce.subroutineSt.KindOf(name) {
-	case symbt.STATIC:
-		return vm.STATIC, ce.subroutineSt.IndexOf(name)
-	case symbt.FIELD:
-		return vm.THIS, ce.subroutineSt.IndexOf(name)
 	case symbt.ARG:
 		return vm.ARGUMENT, ce.subroutineSt.IndexOf(name)
 	case symbt.VAR:
 		return vm.LOCAL, ce.subroutineSt.IndexOf(name)
 	case symbt.NONE:
+		fallthrough
 	default:
 		switch ce.classSt.KindOf(name) {
 		case symbt.STATIC:
 			return vm.STATIC, ce.classSt.IndexOf(name)
 		case symbt.FIELD:
 			return vm.THIS, ce.classSt.IndexOf(name)
-		case symbt.ARG:
-			return vm.ARGUMENT, ce.classSt.IndexOf(name)
-		case symbt.VAR:
-			return vm.LOCAL, ce.classSt.IndexOf(name)
 		}
 	}
 
 	return "", -1
 }
 
+func (ce *CompilationEngine) varType(name string) string {
+	if ce.subroutineSt.KindOf(name) != symbt.NONE {
+		return ce.subroutineSt.TypeOf(name)
+	}
+	return ce.classSt.TypeOf(name)
+}
+
 func (ce *CompilationEngine) compileLet() {
 	ce.tok.ExpectKw(token.LET)
 
 	lhs := ce.tok.Identifier()
-	seg, idx := ce.findVar(lhs)
+	seg, idx := ce.varSeg(lhs)
 	if idx == -1 {
 		log.Panicf("undeclared variable %s", lhs)
 	}
@@ -337,17 +351,31 @@ func (ce *CompilationEngine) compileDo() {
 }
 
 func (ce *CompilationEngine) compileReturn() {
+	defer func() {
+		ce.hasReturn = true
+	}()
+
 	ce.tok.ExpectKw(token.RETURN)
+
 	if ce.tok.ConsumeSym(';') {
+		if !ce.isVoid {
+			log.Panicf("expected a return value")
+		}
+		ce.vm.Push(vm.CONST, 0)
+		ce.vm.Return()
 		return
 	}
+
+	if ce.isVoid {
+		log.Panicf("unexpected return value")
+	}
+	if !ce.tok.MatchKw(token.THIS) && ce.isConstructor {
+		log.Panicf("expected `this`")
+	}
+
 	ce.compileExpression()
 	ce.tok.ExpectSym(';')
-	if ce.isVoid {
-		ce.vm.Push(vm.CONST, 0)
-	} else if ce.isConstructor {
-		ce.vm.Push(vm.POINTER, 0)
-	}
+
 	ce.vm.Return()
 }
 
@@ -387,8 +415,10 @@ func (ce *CompilationEngine) compileTerm() {
 	}
 
 	if ce.tok.TokenType() == token.STRING_CONST {
-		ce.vm.Call("String.new", 0)
-		for _, c := range []byte(ce.tok.StringVal()) {
+		b := []byte(ce.tok.StringVal())
+		ce.vm.Push(vm.CONST, len(b))
+		ce.vm.Call("String.new", 1)
+		for _, c := range b {
 			ce.vm.Push(vm.CONST, int(c))
 			ce.vm.Call("String.appendChar", 2)
 		}
@@ -436,10 +466,12 @@ func (ce *CompilationEngine) compileTerm() {
 	}
 
 	name := ce.tok.Identifier()
-	seg, idx := ce.findVar(name)
+	seg, idx := ce.varSeg(name)
+	ty := ce.varType(name)
 
-	if ce.tok.ConsumeSym('(') {
-		ce.vm.Call(ce.class+"."+name, ce.compileExpressionList())
+	if ce.tok.ConsumeSym('(') { // method call
+		ce.vm.Push(vm.POINTER, 0)
+		ce.vm.Call(ce.class+"."+name, ce.compileExpressionList()+1)
 		ce.tok.ExpectSym(')')
 		return
 	}
@@ -448,21 +480,21 @@ func (ce *CompilationEngine) compileTerm() {
 		fnName := ce.tok.Identifier()
 		ce.tok.ExpectSym('(')
 
-		if idx == -1 { // name is a class name
+		if idx == -1 { // function or constructor
 			ce.vm.Call(name+"."+fnName, ce.compileExpressionList())
 			ce.tok.ExpectSym(')')
 			return
 		}
 
-		// name is a variable name
+		// method
 		ce.vm.Push(seg, idx)
-		ce.vm.Call(name+"."+fnName, ce.compileExpressionList()+1)
+		ce.vm.Call(ty+"."+fnName, ce.compileExpressionList()+1)
 		ce.tok.ExpectSym(')')
 		return
 	}
 
 	if idx == -1 {
-		log.Panicf("undeclared variable %s", name)
+		log.Panicf("undeclared variable: `%s`", name)
 	}
 
 	ce.vm.Push(seg, idx)

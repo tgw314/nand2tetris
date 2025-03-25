@@ -133,6 +133,7 @@ func (t *Tokenizer) HasMoreTokens() bool {
 
 func (t *Tokenizer) Advance() {
 	defer func() {
+		return
 		fmt.Println(t.body)
 	}()
 	for t.HasMoreTokens() {
