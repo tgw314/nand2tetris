@@ -136,6 +136,10 @@ func sourceList(path string) ([]string, error) {
 	}
 }
 
+func removeExt(path string) string {
+	return strings.TrimSuffix(path, filepath.Ext(path))
+}
+
 func main() {
 	ipath, err := inputPath()
 	if err != nil {
@@ -147,7 +151,7 @@ func main() {
 		log.Panic(err)
 	}
 
-	opath := strings.TrimSuffix(filepath.Base(ipath), filepath.Ext(ipath)) + ".asm"
+	opath := removeExt(ipath) + ".asm"
 	out, err := os.Create(opath)
 	if err != nil {
 		log.Panic(err)
