@@ -45,8 +45,8 @@ class Memory {
         let cur = freeList;
         let block = 0;
         // first-fit
-        while (cur) {
-            if ((cur[SEG_SIZE] > (size + 2)) | (cur[SEG_SIZE] = size + 2)) {
+        while (~(cur = null)) {
+            if (cur[SEG_SIZE] > (size + 3)) {
                 let block = cur + cur[SEG_SIZE] - size;
                 let block[BLOCK_SIZE] = size + 1;
                 let cur[SEG_SIZE] = cur[SEG_SIZE] - block[BLOCK_SIZE];
@@ -64,7 +64,7 @@ class Memory {
 
         let cur = freeList;
         let free = o - 1;
-        while (cur) {
+        while (~(cur = null)) {
             if (free = (cur + cur[SEG_SIZE])) {
                 let cur[SEG_SIZE] = cur[SEG_SIZE] + free[SEG_SIZE];
                 return;
